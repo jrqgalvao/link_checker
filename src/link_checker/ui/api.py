@@ -223,7 +223,8 @@ class LinkCheckerUIApi:
             return results
 
         visible = indices or []
-        return [results[index] for index in visible if 0 <= index < len(results)]
+        selected = [results[index] for index in visible if 0 <= index < len(results)]
+        return selected or None
 
     def _run_file_selection(self, job_id: int) -> None:
         try:

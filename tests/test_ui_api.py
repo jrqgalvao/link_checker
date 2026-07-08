@@ -220,6 +220,23 @@ def test_exportar_operacional_uses_visible_indices(tmp_path: Path) -> None:
     assert overwrite is True
 
 
+def test_exportar_visible_without_rows_returns_clear_error(tmp_path: Path) -> None:
+    writer = FakeWriter()
+    results = [make_result("Ana", LinkStatus.OK)]
+    api = LinkCheckerUIApi(
+        validator=lambda _path, _progress=None: results,
+        report_writer=writer,
+        reports_dir=tmp_path,
+    )
+    api.validar(str(tmp_path / "entrada.xlsx"))
+    _wait_until_done(api)
+
+    response = api.exportar(True, [], str(tmp_path / "vazio.xlsx"))
+
+    assert response == {"ok": False, "erro": "Nenhum resultado para exportar."}
+    assert writer.operational_calls == []
+
+
 def test_exportar_without_results_returns_clear_error(tmp_path: Path) -> None:
     api = LinkCheckerUIApi(reports_dir=tmp_path)
 

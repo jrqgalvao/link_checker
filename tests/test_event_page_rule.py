@@ -5,6 +5,7 @@ from link_checker.rules.event_page_rule import EventPageRule
 
 def _context(
     *,
+    link: str = "https://x.test",
     status_code: int | None = 200,
     final_url: str | None = None,
     response_text: str | None = "",
@@ -13,7 +14,7 @@ def _context(
 ) -> ValidationContext:
     return ValidationContext(
         http_result=HttpCheckResult(
-            link="https://x.test",
+            link=link,
             status_code=status_code,
             final_url=final_url,
             response_text=response_text,
@@ -71,6 +72,19 @@ class TestReturnsOk:
                     "https://example.com/inscricoes-participantes/form/codigoevento/"
                     "1117/lang/pt_br/redir/teste"
                 )
+            )
+        )
+        assert result is not None
+        assert result.status == LinkStatus.OK
+
+    def test_original_registration_url_redirected_to_login_returns_ok(self) -> None:
+        result = EventPageRule().match(
+            _context(
+                link=(
+                    "https://test.com/hotsite/inscricoes-participantes/form/"
+                    "codigoevento/1117/lang/pt_br/redir/teste"
+                ),
+                final_url="https://test.com/hotsite/login/index/url/abc/codigoevento/1117",
             )
         )
         assert result is not None
@@ -158,6 +172,15 @@ class TestReturnsNone:
     def test_controladora_erro_url_returns_none(self) -> None:
         result = EventPageRule().match(
             _context(final_url="https://test.com/hotsite/controladora/erro/cio/123")
+        )
+        assert result is None
+
+    def test_original_registration_url_with_final_error_returns_none(self) -> None:
+        result = EventPageRule().match(
+            _context(
+                link="https://test.com/hotsite/inscricoes-participantes/form/123",
+                final_url="https://test.com/hotsite/controladora/erro/cio/123",
+            )
         )
         assert result is None
 

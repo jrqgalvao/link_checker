@@ -39,6 +39,7 @@ class EventPageRule:
             return None
 
         normalized_url = normalize_text(http.final_url or "")
+        normalized_original_url = normalize_text(http.link)
 
         for pattern in self.negative_url_patterns:
             if pattern in normalized_url:
@@ -50,6 +51,14 @@ class EventPageRule:
                     LinkStatus.OK,
                     self.name,
                     "URL final de inscricao detectada",
+                )
+
+        for pattern in self.registration_url_patterns:
+            if pattern in normalized_original_url:
+                return RuleMatch(
+                    LinkStatus.OK,
+                    self.name,
+                    "URL original de inscricao detectada",
                 )
 
         normalized_text = normalize_text(context.text)
