@@ -73,6 +73,35 @@ def test_main_prepares_pythonnet_before_webview_import(monkeypatch) -> None:
     assert imported_runtime["value"] == "netfx"
 
 
+def test_main_redirects_webview_lib_before_start(monkeypatch) -> None:
+    calls = {}
+    fake_window = object()
+    fake_webview = SimpleNamespace(util=SimpleNamespace(__file__="network/webview/util.py"))
+
+    class FakeApi:
+        def set_window(self, window) -> None:
+            pass
+
+    def create_window(*args, **kwargs):
+        return fake_window
+
+    def start(*args, **kwargs):
+        calls["util_file_at_start"] = fake_webview.util.__file__
+
+    fake_webview.create_window = create_window
+    fake_webview.start = start
+
+    monkeypatch.setitem(sys.modules, "webview", fake_webview)
+    monkeypatch.setattr(app, "LinkCheckerUIApi", FakeApi)
+    monkeypatch.setattr(app, "_load_html", lambda: "<html>ok</html>")
+    monkeypatch.setattr(app, "_prepare_pythonnet_runtime", lambda: None)
+    monkeypatch.setattr(app, "_prepare_webview_runtime", lambda: str(app.Path("local-webview/lib")))
+
+    app.main()
+
+    assert calls["util_file_at_start"] == str(app.Path("local-webview") / "util.py")
+
+
 def test_prepare_pythonnet_runtime_redirects_frozen_dll(monkeypatch, tmp_path) -> None:
     source_runtime = tmp_path / "bundle" / "pythonnet" / "runtime"
     source_runtime.mkdir(parents=True)
@@ -96,6 +125,44 @@ def test_prepare_pythonnet_runtime_redirects_frozen_dll(monkeypatch, tmp_path) -
     assert fake_pythonnet.__file__ == str(
         target_root / "link_checker_pythonnet" / "pythonnet" / "__init__.py"
     )
+
+
+def test_prepare_webview_runtime_copies_frozen_lib_to_local_temp(monkeypatch, tmp_path) -> None:
+    source_lib = tmp_path / "bundle" / "webview" / "lib"
+    source_lib.mkdir(parents=True)
+    (source_lib / "Microsoft.Web.WebView2.Core.dll").write_bytes(b"dll")
+    target_root = tmp_path / "temp"
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "bundle"), raising=False)
+    monkeypatch.setattr(app.tempfile, "gettempdir", lambda: str(target_root))
+
+    path = app._prepare_webview_runtime()
+
+    target = target_root / "link_checker_webview" / "lib" / "Microsoft.Web.WebView2.Core.dll"
+    assert path == str(target_root / "link_checker_webview" / "lib")
+    assert target.read_bytes() == b"dll"
+
+
+def test_prepare_webview_runtime_reuses_cached_files(monkeypatch, tmp_path) -> None:
+    source_lib = tmp_path / "bundle" / "webview" / "lib"
+    source_lib.mkdir(parents=True)
+    (source_lib / "Microsoft.Web.WebView2.Core.dll").write_bytes(b"dll")
+    target_root = tmp_path / "temp"
+    target_lib = target_root / "link_checker_webview" / "lib"
+    target_lib.mkdir(parents=True)
+    (target_lib / "Microsoft.Web.WebView2.Core.dll").write_bytes(b"dll")
+    copies = []
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "bundle"), raising=False)
+    monkeypatch.setattr(app.tempfile, "gettempdir", lambda: str(target_root))
+    monkeypatch.setattr(app.shutil, "copy2", lambda *args: copies.append(args))
+
+    path = app._prepare_webview_runtime()
+
+    assert path == str(target_lib)
+    assert copies == []
 
 
 def test_prepare_pythonnet_runtime_reuses_cached_dll(monkeypatch, tmp_path) -> None:

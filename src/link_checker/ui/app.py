@@ -54,14 +54,43 @@ def _prepare_pythonnet_runtime() -> None:
     pythonnet.__file__ = str(target_dir / "__init__.py")
 
 
+def _prepare_webview_runtime() -> str | None:
+    if not getattr(sys, "frozen", False):
+        return None
+
+    source_lib = Path(sys._MEIPASS) / "webview" / "lib"
+    target_lib = Path(tempfile.gettempdir()) / "link_checker_webview" / "lib"
+    _copy_changed_tree(source_lib, target_lib)
+    return str(target_lib)
+
+
+def _copy_changed_tree(source_dir: Path, target_dir: Path) -> None:
+    for source in source_dir.rglob("*"):
+        target = target_dir / source.relative_to(source_dir)
+        if source.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists() or not filecmp.cmp(source, target, shallow=False):
+            shutil.copy2(source, target)
+
+
+def _redirect_webview_lib(webview, lib_path: str | None) -> None:
+    if not lib_path or not hasattr(webview, "util"):
+        return
+    webview.util.__file__ = str(Path(lib_path).parent / "util.py")
+
+
 def main() -> None:
     # ponytail: pythonnet/netfx breaks when its DLL is loaded from some frozen paths.
     _prepare_pythonnet_runtime()
+    webview_lib_path = _prepare_webview_runtime()
 
     try:
         import webview
     except ImportError as exc:
         raise SystemExit("pywebview nao esta instalado. Reinstale o aplicativo.") from exc
+    _redirect_webview_lib(webview, webview_lib_path)
 
     api = LinkCheckerUIApi()
     window = webview.create_window(
