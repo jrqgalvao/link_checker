@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "link-checker"
+version = "0.1.0"
+description = "Automacao de testes de links unicos de inscricao em eventos."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "pywebview>=5.0",
+  "xlrd>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "openpyxl>=3.1",
+  "pytest>=8.0",
+  "ruff>=0.6",
+]
+
+[project.scripts]
+link-checker = "link_checker.ui.app:main"
+link-checker-cli = "link_checker.cli:main"
+link-checker-ui = "link_checker.ui.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/link_checker"]
+include = ["src/link_checker/ui/templates/*.html"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

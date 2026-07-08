@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Link Checker</title>
+  <style>
+    :root {
+      --bg: #f6f7f6;
+      --panel: #ffffff;
+      --surface: #eef1ee;
+      --line: #c7d3c7;
+      --line-soft: #dde6dd;
+      --text: #162016;
+      --muted: #5f745f;
+      --accent: #2e7d32;
+      --accent-dark: #1b5e20;
+      --accent-blue: #00a3b8;
+      --danger: #b42318;
+      --ok: #1e6b22;
+      --warn: #b45309;
+      --shadow: 0 1px 3px rgba(22,32,22,.08), 0 8px 22px rgba(22,32,22,.05);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 14px;
+      letter-spacing: 0;
+      overflow: hidden;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      min-height: 34px;
+      padding: 7px 10px;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--accent);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .primary:hover:not(:disabled) {
+      background: var(--accent-dark);
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: 70px 1fr 28px;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(143,209,158,.36);
+      background:
+        radial-gradient(circle at 14% 0%, rgba(143,209,158,.16), transparent 30%),
+        linear-gradient(135deg, #0b1b10 0%, #123d24 48%, #0d2e36 100%);
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      padding: 0 24px;
+    }
+
+    header::before {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 4px;
+      background: linear-gradient(90deg, #8fd19e, var(--accent-blue), transparent 70%);
+    }
+
+    .brand {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    .brand-logo {
+      display: block;
+      width: auto;
+      height: 36px;
+      max-width: 260px;
+      object-fit: contain;
+    }
+
+    h1 {
+      margin: 0;
+      color: rgba(255,255,255,.92);
+      font-size: 16px;
+      font-weight: 800;
+      text-shadow: 0 1px 10px rgba(0,0,0,.22);
+    }
+
+    .state {
+      position: relative;
+      z-index: 1;
+      color: #e8f5e9;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 10px;
+      min-height: 0;
+      min-width: 0;
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    aside {
+      min-width: 0;
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .file-box {
+      min-width: 0;
+    }
+
+    #select-file {
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 96px;
+      border: 2px dashed var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 800;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
+    }
+
+    #select-file:hover:not(:disabled) {
+      border-color: var(--accent);
+      background: #e8f5e9;
+    }
+
+    .file-box.loaded #select-file {
+      border-color: var(--accent);
+      background: #e7f5e7;
+    }
+
+    .xls-icon {
+      display: inline-grid;
+      place-items: center;
+      min-width: 36px;
+      height: 24px;
+      border: 1px solid var(--text);
+      border-radius: 5px;
+      background: #f8fbf8;
+      color: #111;
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .upload-label {
+      font-size: 14px;
+      line-height: 1.1;
+    }
+
+    .upload-check {
+      font-size: 18px;
+      line-height: 1;
+      color: var(--accent);
+    }
+
+    .upload-loaded-label {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .upload-filename {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .file-name {
+      display: none;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-meta {
+      display: none;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .progress-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 10px;
+    }
+
+    .progress-text {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .progress-track {
+      overflow: hidden;
+      height: 7px;
+      margin-top: 8px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--line-soft);
+    }
+
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--accent-blue));
+      transition: width .2s ease;
+    }
+
+    .content {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      gap: 10px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(90px, 1fr));
+      gap: 10px;
+      margin-bottom: 0;
+    }
+
+    .kpi {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #ffffff 0%, #f7faf7 100%);
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .kpi strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr 240px;
+      gap: 10px;
+      margin-bottom: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #ffffff 0%, #f5f8f5 100%);
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .filter {
+      min-height: 32px;
+      border-color: var(--line-soft);
+      background: #f8faf8;
+      color: #405040;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .filter.active {
+      border-color: var(--accent);
+      background: #e1f4e4;
+      color: var(--accent-dark);
+      box-shadow: inset 0 0 0 1px rgba(46,125,50,.12);
+    }
+
+    .search {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfdfb;
+      padding: 7px 11px;
+      outline: none;
+    }
+
+    .search:focus {
+      border-color: var(--accent);
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: var(--shadow);
+      min-height: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #eef6f0;
+    }
+
+    th, td {
+      overflow: hidden;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 9px 12px;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    th {
+      color: #3f5a43;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    td {
+      font-size: 13px;
+    }
+
+    .col-participante { width: 18%; }
+    .col-empresa { width: 18%; }
+    .col-link { width: 50%; }
+    .col-resultado { width: 14%; }
+
+    .badge {
+      display: inline-block;
+      min-width: 48px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .badge.ok {
+      background: #dcfce7;
+      color: var(--ok);
+    }
+
+    .badge.error {
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .empty {
+      padding: 36px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .result-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 38px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: rgba(255,255,255,.7);
+      color: #526852;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pager {
+      display: flex;
+      gap: 6px;
+    }
+
+    .pager button {
+      min-height: 30px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgb(15 23 42 / 32%);
+      z-index: 10;
+    }
+
+    .modal {
+      width: 340px;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 12px 38px rgb(15 23 42 / 24%);
+      padding: 16px;
+    }
+
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--line-soft);
+      background: var(--panel);
+      color: var(--muted);
+      padding: 0 12px;
+      font-size: 11px;
+    }
+
+    .modal h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .modal p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .side-stack {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .file-box {
+        grid-column: 1 / -1;
+      }
+
+      .kpis {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .table-wrap {
+        min-height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <img class="brand-logo" src="{{LOGO_WHITE}}" alt="Empresa Placeholder">
+      </div>
+      <div id="state" class="state">Aguardando planilha</div>
+    </header>
+
+    <main>
+      <aside>
+        <div class="side-stack">
+          <div class="file-box">
+            <button id="select-file" type="button">
+              <span class="xls-icon">XLS</span>
+              <span class="upload-label">Clique para selecionar</span>
+              <span id="upload-check" class="upload-check" hidden>✓</span>
+              <span id="upload-loaded-label" class="upload-loaded-label" hidden>Planilha carregada</span>
+              <span id="upload-filename" class="upload-filename" hidden></span>
+            </button>
+            <div id="file-name" class="file-name">Nenhum arquivo</div>
+            <div id="file-meta" class="file-meta">.xlsx, .xlsm, .xls ou .csv</div>
+          </div>
+          <button id="validate" class="primary" type="button" disabled>Validar</button>
+          <button id="clear" type="button">Limpar</button>
+          <button id="export" type="button" disabled>Exportar Excel</button>
+          <div class="progress-card">
+            <div id="progress-text" class="progress-text">Aguardando</div>
+            <div class="progress-track">
+              <div id="progress-fill" class="progress-fill"></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="content">
+        <div class="kpis">
+          <div class="kpi"><span>Total</span><strong id="kpi-total">0</strong></div>
+          <div class="kpi"><span>ATIVOS</span><strong id="kpi-ativos">0</strong></div>
+          <div class="kpi"><span>INATIVOS</span><strong id="kpi-inativos">0</strong></div>
+        </div>
+
+        <div class="toolbar">
+          <div class="filters">
+            <button class="filter active" type="button" data-filter="TODOS">TODOS</button>
+            <button class="filter" type="button" data-filter="ATIVOS">ATIVOS</button>
+            <button class="filter" type="button" data-filter="INATIVOS">INATIVOS</button>
+          </div>
+          <input id="search" class="search" type="search" placeholder="Buscar">
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-participante">Participante</th>
+                <th class="col-empresa">Empresa</th>
+                <th class="col-link">Link</th>
+                <th class="col-resultado">Resultado</th>
+              </tr>
+            </thead>
+            <tbody id="rows">
+              <tr><td class="empty" colspan="4">Selecione uma planilha para começar.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="result-footer">
+          <span id="row-count">0 registros</span>
+          <div class="pager">
+            <button id="prev-page" type="button" disabled>Anterior</button>
+            <button id="next-page" type="button" disabled>Próxima</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Empresa Placeholder</span>
+      <span>Aplicativo desktop local</span>
+    </footer>
+  </div>
+
+  <div id="scope-modal" class="modal-backdrop">
+    <div class="modal">
+      <h2>Exportar resultados</h2>
+      <p>Há filtro ou busca ativa. Escolha o escopo da exportação.</p>
+      <div class="modal-actions">
+        <button type="button" data-scope="cancelar">Cancelar</button>
+        <button type="button" data-scope="todos">Todos</button>
+        <button class="primary" type="button" data-scope="visiveis">Visíveis</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      path: null,
+      rows: [],
+      filtered: [],
+      filter: "TODOS",
+      busy: false,
+      page: 1,
+      pageSize: 100,
+      pollTimer: null,
+      searchTimer: null,
+    };
+
+    const els = {
+      state: document.getElementById("state"),
+      selectFile: document.getElementById("select-file"),
+      validate: document.getElementById("validate"),
+      clear: document.getElementById("clear"),
+      export: document.getElementById("export"),
+      fileName: document.getElementById("file-name"),
+      fileMeta: document.getElementById("file-meta"),
+      progressText: document.getElementById("progress-text"),
+      progressFill: document.getElementById("progress-fill"),
+      rows: document.getElementById("rows"),
+      rowCount: document.getElementById("row-count"),
+      prevPage: document.getElementById("prev-page"),
+      nextPage: document.getElementById("next-page"),
+      search: document.getElementById("search"),
+      filters: Array.from(document.querySelectorAll(".filter")),
+      modal: document.getElementById("scope-modal"),
+      uploadCheck: document.getElementById("upload-check"),
+      uploadLoadedLabel: document.getElementById("upload-loaded-label"),
+      uploadFilename: document.getElementById("upload-filename"),
+      fileBox: document.querySelector(".file-box"),
+    };
+
+    function api() {
+      if (!window.pywebview || !window.pywebview.api) {
+        throw new Error("API desktop indisponível.");
+      }
+      return window.pywebview.api;
+    }
+
+    function setBusy(value, message) {
+      state.busy = value;
+      els.state.textContent = message;
+      els.selectFile.disabled = value;
+      els.validate.disabled = value || !state.path;
+      els.clear.disabled = value;
+      els.export.disabled = value || state.rows.length === 0;
+    }
+
+    function setStatus(message) {
+      els.state.textContent = message;
+    }
+
+    function setUploadLoaded(fileName) {
+      els.fileBox.classList.add("loaded");
+      els.uploadCheck.hidden = false;
+      els.uploadLoadedLabel.hidden = false;
+      els.uploadFilename.hidden = false;
+      els.uploadFilename.textContent = fileName || "";
+      els.selectFile.querySelector(".upload-label").hidden = true;
+    }
+
+    function setUploadIdle() {
+      els.fileBox.classList.remove("loaded");
+      els.uploadCheck.hidden = true;
+      els.uploadLoadedLabel.hidden = true;
+      els.uploadFilename.hidden = true;
+      els.uploadFilename.textContent = "";
+      els.selectFile.querySelector(".upload-label").hidden = false;
+    }
+
+    function setProgress(processed, total) {
+      const safeTotal = Math.max(Number(total || 0), 0);
+      const safeProcessed = Math.max(Number(processed || 0), 0);
+      const percent = safeTotal > 0 ? Math.min(100, Math.round((safeProcessed / safeTotal) * 100)) : 0;
+      els.progressFill.style.width = `${percent}%`;
+      els.progressText.textContent = safeTotal > 0
+        ? `${percent}% — ${safeProcessed}/${safeTotal} processados`
+        : "Aguardando";
+    }
+
+    function showError(message) {
+      setStatus(message || "Erro inesperado.");
+    }
+
+    function updateKpis(kpis) {
+      document.getElementById("kpi-total").textContent = kpis.total || 0;
+      document.getElementById("kpi-ativos").textContent = kpis.ativos || 0;
+      document.getElementById("kpi-inativos").textContent = kpis.inativos || 0;
+    }
+
+    function resetKpis() {
+      updateKpis({});
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function rowMatchesFilter(row) {
+      if (state.filter === "TODOS") return true;
+      if (state.filter === "ATIVOS") return row.resultado === "OK";
+      if (state.filter === "INATIVOS") return row.resultado === "ERRO";
+      return true;
+    }
+
+    function rowMatchesSearch(row) {
+      const term = els.search.value.trim().toLowerCase();
+      if (!term) return true;
+      return [row.participante, row.empresa, row.link]
+        .some(value => String(value || "").toLowerCase().includes(term));
+    }
+
+    function renderRows() {
+      state.filtered = state.rows.filter(row => rowMatchesFilter(row) && rowMatchesSearch(row));
+      if (state.filtered.length === 0) {
+        els.rows.innerHTML = '<tr><td class="empty" colspan="4">Nenhum resultado para exibir.</td></tr>';
+        els.rowCount.textContent = `0 de ${state.rows.length} registros`;
+        els.prevPage.disabled = true;
+        els.nextPage.disabled = true;
+        return;
+      }
+
+      const pageCount = Math.max(1, Math.ceil(state.filtered.length / state.pageSize));
+      state.page = Math.min(Math.max(state.page, 1), pageCount);
+      const start = (state.page - 1) * state.pageSize;
+      const visibleRows = state.filtered.slice(start, start + state.pageSize);
+
+      els.rows.innerHTML = visibleRows.map(row => `
+        <tr>
+          <td title="${escapeHtml(row.participante)}">${escapeHtml(row.participante)}</td>
+          <td title="${escapeHtml(row.empresa)}">${escapeHtml(row.empresa)}</td>
+          <td title="${escapeHtml(row.link)}">${escapeHtml(row.link)}</td>
+          <td><span class="badge ${row.resultado === "OK" ? "ok" : "error"}">${escapeHtml(row.resultado)}</span></td>
+        </tr>
+      `).join("");
+      els.rowCount.textContent =
+        `${start + 1}-${start + visibleRows.length} de ${state.filtered.length} visíveis (${state.rows.length} total)`;
+      els.prevPage.disabled = state.page <= 1;
+      els.nextPage.disabled = state.page >= pageCount;
+    }
+
+    function hasActiveFilter() {
+      return state.filter !== "TODOS" || els.search.value.trim() !== "";
+    }
+
+    function askExportScope() {
+      if (!hasActiveFilter()) {
+        return Promise.resolve("todos");
+      }
+
+      els.modal.style.display = "flex";
+      return new Promise(resolve => {
+        const handler = event => {
+          const scope = event.target.dataset.scope;
+          if (!scope) return;
+          els.modal.style.display = "none";
+          els.modal.removeEventListener("click", handler);
+          resolve(scope);
+        };
+        els.modal.addEventListener("click", handler);
+      });
+    }
+
+    async function exportResults() {
+      const scope = await askExportScope();
+      if (scope === "cancelar") return;
+
+      setBusy(true, "Exportando...");
+      const visible = scope === "visiveis";
+      const indices = visible ? state.filtered.map(row => row.idx) : [];
+      const response = await api().exportar(visible, indices);
+      setBusy(false, response.ok ? `Arquivo salvo: ${response.nome}` : "Falha na exportação");
+      if (!response.ok) showError(response.erro);
+    }
+
+    function stopPolling() {
+      if (state.pollTimer) {
+        clearTimeout(state.pollTimer);
+        state.pollTimer = null;
+      }
+    }
+
+    async function pollValidation() {
+      try {
+        const status = await api().get_status(false);
+        if (status.state === "validating") {
+          setStatus("Validando...");
+          setProgress(status.processed || 0, status.total || 0);
+          state.pollTimer = setTimeout(pollValidation, 500);
+          return;
+        }
+        if (status.state === "error") {
+          stopPolling();
+          setBusy(false, "Falha na validação");
+          showError(status.erro);
+          return;
+        }
+        if (status.state === "done") {
+          const done = await api().get_status(true);
+          stopPolling();
+          state.rows = done.rows || [];
+          state.page = 1;
+          updateKpis(done.kpis || {});
+          setProgress(done.processed || state.rows.length, done.total || state.rows.length);
+          renderRows();
+          setBusy(false, `${state.rows.length} links validados`);
+          return;
+        }
+        state.pollTimer = setTimeout(pollValidation, 500);
+      } catch (error) {
+        stopPolling();
+        setBusy(false, "Falha na validação");
+        showError(error.message);
+      }
+    }
+
+    async function pollFileLoad() {
+      try {
+        const status = await api().get_status(false);
+        if (status.state === "selecting") {
+          setStatus("Selecionando planilha...");
+          state.pollTimer = setTimeout(pollFileLoad, 300);
+          return;
+        }
+        if (status.state === "cancelled") {
+          stopPolling();
+          setBusy(false, "Aguardando planilha");
+          return;
+        }
+        if (status.state === "loading") {
+          setStatus("Carregando planilha...");
+          state.pollTimer = setTimeout(pollFileLoad, 300);
+          return;
+        }
+        if (status.state === "error") {
+          stopPolling();
+          setBusy(false, "Falha ao carregar");
+          showError(status.erro);
+          return;
+        }
+        if (status.state === "loaded") {
+          stopPolling();
+          state.path = status.path || state.path;
+          state.rows = [];
+          state.filtered = [];
+          state.page = 1;
+          els.fileName.textContent = status.nome || "Planilha selecionada";
+          els.fileMeta.textContent = `${status.total || 0} linhas encontradas`;
+          setUploadLoaded(status.nome);
+          els.rows.innerHTML = '<tr><td class="empty" colspan="4">Planilha pronta para validação.</td></tr>';
+          els.rowCount.textContent = "0 registros";
+          resetKpis();
+          setProgress(0, status.total || 0);
+          setBusy(false, "Planilha carregada");
+          return;
+        }
+        state.pollTimer = setTimeout(pollFileLoad, 300);
+      } catch (error) {
+        stopPolling();
+        setBusy(false, "Falha ao carregar");
+        showError(error.message);
+      }
+    }
+
+    els.selectFile.addEventListener("click", async () => {
+      stopPolling();
+      setBusy(true, "Selecionando planilha...");
+      try {
+        const response = await api().selecionar_arquivo();
+        if (!response.ok) {
+          setBusy(false, "Aguardando planilha");
+          showError(response.erro);
+          return;
+        }
+        state.path = null;
+        state.rows = [];
+        state.filtered = [];
+        state.page = 1;
+        els.fileName.textContent = "Selecionando...";
+        els.fileMeta.textContent = "Aguardando arquivo";
+        els.rows.innerHTML = '<tr><td class="empty" colspan="4">Selecione a planilha.</td></tr>';
+        els.rowCount.textContent = "0 registros";
+        resetKpis();
+        setProgress(0, 0);
+        pollFileLoad();
+      } catch (error) {
+        setBusy(false, "Falha ao selecionar");
+        showError(error.message);
+      }
+    });
+
+    els.validate.addEventListener("click", async () => {
+      if (!state.path) return;
+      stopPolling();
+      setBusy(true, "Validando...");
+      setProgress(0, 0);
+      try {
+        const response = await api().validar(state.path);
+        if (!response.ok) {
+          setBusy(false, "Falha na validação");
+          showError(response.erro);
+          return;
+        }
+        pollValidation();
+      } catch (error) {
+        setBusy(false, "Falha na validação");
+        showError(error.message);
+      }
+    });
+
+    els.clear.addEventListener("click", async () => {
+      stopPolling();
+      await api().limpar();
+      state.path = null;
+      state.rows = [];
+      state.filtered = [];
+      state.filter = "TODOS";
+      state.page = 1;
+      els.search.value = "";
+      els.filters.forEach(button => button.classList.toggle("active", button.dataset.filter === "TODOS"));
+      els.fileName.textContent = "Nenhum arquivo";
+      els.fileMeta.textContent = ".xlsx, .xlsm, .xls ou .csv";
+      setUploadIdle();
+      els.rows.innerHTML = '<tr><td class="empty" colspan="4">Selecione uma planilha para começar.</td></tr>';
+      els.rowCount.textContent = "0 registros";
+      resetKpis();
+      setProgress(0, 0);
+      setBusy(false, "Aguardando planilha");
+    });
+
+    els.filters.forEach(button => {
+      button.addEventListener("click", () => {
+        state.filter = button.dataset.filter;
+        state.page = 1;
+        els.filters.forEach(item => item.classList.toggle("active", item === button));
+        renderRows();
+      });
+    });
+
+    els.search.addEventListener("input", () => {
+      clearTimeout(state.searchTimer);
+      state.searchTimer = setTimeout(() => {
+        state.page = 1;
+        renderRows();
+      }, 250);
+    });
+    els.prevPage.addEventListener("click", () => {
+      state.page -= 1;
+      renderRows();
+    });
+    els.nextPage.addEventListener("click", () => {
+      state.page += 1;
+      renderRows();
+    });
+    els.export.addEventListener("click", exportResults);
+  </script>
+</body>
+</html>
