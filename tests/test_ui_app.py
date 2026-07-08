@@ -73,10 +73,14 @@ def test_main_prepares_pythonnet_before_webview_import(monkeypatch) -> None:
     assert imported_runtime["value"] == "netfx"
 
 
-def test_main_redirects_webview_lib_before_start(monkeypatch) -> None:
+def test_main_redirects_only_webview_dll_lookup_before_start(monkeypatch) -> None:
     calls = {}
     fake_window = object()
-    fake_webview = SimpleNamespace(util=SimpleNamespace(__file__="network/webview/util.py"))
+    fake_util = SimpleNamespace(
+        __file__="network/webview/util.py",
+        interop_dll_path=lambda name: f"network/{name}",
+    )
+    fake_webview = SimpleNamespace(util=fake_util)
 
     class FakeApi:
         def set_window(self, window) -> None:
@@ -87,6 +91,9 @@ def test_main_redirects_webview_lib_before_start(monkeypatch) -> None:
 
     def start(*args, **kwargs):
         calls["util_file_at_start"] = fake_webview.util.__file__
+        calls["core_dll_at_start"] = fake_webview.util.interop_dll_path(
+            "Microsoft.Web.WebView2.Core.dll"
+        )
 
     fake_webview.create_window = create_window
     fake_webview.start = start
@@ -99,7 +106,10 @@ def test_main_redirects_webview_lib_before_start(monkeypatch) -> None:
 
     app.main()
 
-    assert calls["util_file_at_start"] == str(app.Path("local-webview") / "util.py")
+    assert calls["util_file_at_start"] == "network/webview/util.py"
+    assert calls["core_dll_at_start"] == str(
+        app.Path("local-webview/lib") / "Microsoft.Web.WebView2.Core.dll"
+    )
 
 
 def test_prepare_pythonnet_runtime_redirects_frozen_dll(monkeypatch, tmp_path) -> None:

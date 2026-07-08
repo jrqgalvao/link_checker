@@ -78,7 +78,24 @@ def _copy_changed_tree(source_dir: Path, target_dir: Path) -> None:
 def _redirect_webview_lib(webview, lib_path: str | None) -> None:
     if not lib_path or not hasattr(webview, "util"):
         return
-    webview.util.__file__ = str(Path(lib_path).parent / "util.py")
+
+    def interop_dll_path(dll_name: str) -> str:
+        if dll_name == "WebBrowserInterop.dll":
+            dll_name = (
+                "WebBrowserInterop.x64.dll" if sys.maxsize > 2**32 else "WebBrowserInterop.x86.dll"
+            )
+
+        direct_path = Path(lib_path) / dll_name
+        if direct_path.exists():
+            return str(direct_path)
+
+        runtime_path = Path(lib_path) / "runtimes" / dll_name / "native"
+        if runtime_path.exists():
+            return str(runtime_path)
+
+        return str(direct_path)
+
+    webview.util.interop_dll_path = interop_dll_path
 
 
 def main() -> None:
