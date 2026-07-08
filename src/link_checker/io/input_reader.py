@@ -103,16 +103,20 @@ class InputReader:
 def _read_xlsx_rows(path: Path) -> list[list[object]]:
     from openpyxl import load_workbook
 
-    workbook = load_workbook(path, read_only=False, data_only=True)
-    sheet = workbook.worksheets[0]
+    value_workbook = load_workbook(path, read_only=False, data_only=True)
+    formula_workbook = load_workbook(path, read_only=False, data_only=False)
+    value_sheet = value_workbook.worksheets[0]
+    formula_sheet = formula_workbook.worksheets[0]
     rows: list[list[object]] = []
-    for cells in sheet.iter_rows():
+    for value_cells, formula_cells in zip(
+        value_sheet.iter_rows(), formula_sheet.iter_rows(), strict=True
+    ):
         row = []
-        for cell in cells:
-            if cell.column == 3 and cell.hyperlink and cell.hyperlink.target:
-                row.append(cell.hyperlink.target)
+        for value_cell, formula_cell in zip(value_cells, formula_cells, strict=True):
+            if value_cell.column == 3:
+                row.append(_link_value(value_cell.value, formula_cell))
             else:
-                row.append(cell.value)
+                row.append(value_cell.value)
         rows.append(row)
     return rows
 
@@ -128,6 +132,40 @@ def _cell(row: list[object], index: int) -> str:
     if index >= len(row):
         return ""
     return str(row[index] or "").strip()
+
+
+def _link_value(value: object, formula_cell) -> object:
+    if formula_cell.hyperlink and formula_cell.hyperlink.target:
+        return formula_cell.hyperlink.target
+    if isinstance(formula_cell.value, str):
+        formula_link = _hyperlink_formula_target(formula_cell.value)
+        if formula_link:
+            return formula_link
+    return value
+
+
+def _hyperlink_formula_target(value: str) -> str:
+    formula = value.strip()
+    if not formula[:11].lower().startswith(("=hyperlink(", "=hiperlink(")):
+        return ""
+
+    start = formula.find('"')
+    if start < 0:
+        return ""
+
+    chars: list[str] = []
+    index = start + 1
+    while index < len(formula):
+        char = formula[index]
+        if char == '"':
+            if index + 1 < len(formula) and formula[index + 1] == '"':
+                chars.append('"')
+                index += 2
+                continue
+            break
+        chars.append(char)
+        index += 1
+    return "".join(chars).strip()
 
 
 def _has_http_scheme(value: str) -> bool:

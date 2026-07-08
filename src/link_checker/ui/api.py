@@ -319,7 +319,7 @@ class LinkCheckerUIApi:
 
     def _resolve_export_path(self, path: str | None, default_name: str) -> Path | None:
         if path:
-            return Path(path)
+            return _with_default_suffix(Path(path), ".xlsx")
         if self._window is None:
             return self._reports_dir / default_name
 
@@ -337,8 +337,8 @@ class LinkCheckerUIApi:
         if not selected:
             return None
         if isinstance(selected, str):
-            return Path(selected)
-        return Path(selected[0])
+            return _with_default_suffix(Path(selected), ".xlsx")
+        return _with_default_suffix(Path(selected[0]), ".xlsx")
 
 
 def _build_kpis(results: list[ValidationResult]) -> dict[str, int]:
@@ -363,3 +363,7 @@ def _result_to_row(index: int, result: ValidationResult) -> dict[str, object]:
         "rule_name": result.rule_name,
         "evidence": result.evidence or result.technical_error or "",
     }
+
+
+def _with_default_suffix(path: Path, suffix: str) -> Path:
+    return path.with_suffix(suffix) if not path.suffix else path

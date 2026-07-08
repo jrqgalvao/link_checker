@@ -199,6 +199,24 @@ def test_exportar_operacional_uses_all_results_by_default(tmp_path: Path) -> Non
     assert overwrite is True
 
 
+def test_exportar_operacional_adds_xlsx_when_path_has_no_extension(tmp_path: Path) -> None:
+    writer = FakeWriter()
+    results = [make_result("Ana", LinkStatus.OK)]
+    api = LinkCheckerUIApi(
+        validator=lambda _path, _progress=None: results,
+        report_writer=writer,
+        reports_dir=tmp_path,
+    )
+    api.validar(str(tmp_path / "entrada.xlsx"))
+    _wait_until_done(api)
+
+    response = api.exportar(False, [], str(tmp_path / "saida"))
+
+    assert response["ok"] is True
+    _exported, path, _overwrite = writer.operational_calls[0]
+    assert path == tmp_path / "saida.xlsx"
+
+
 def test_exportar_operacional_uses_visible_indices(tmp_path: Path) -> None:
     writer = FakeWriter()
     results = [make_result("Ana", LinkStatus.OK), make_result("Bia", LinkStatus.TIMEOUT)]
