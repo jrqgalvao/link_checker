@@ -459,7 +459,7 @@ class MyRule:
     - Normal HTTP with final URL `/hotsite/inscricoes-participantes/form/` or `/inscricoes-participantes/form/` -> `OK`
     - Normal HTTP with clear text containing `inscricao` and `participante` -> `OK`
     - Generic HTTP 200 without strong signals -> `INDETERMINADO`
-- Operational CSV/XLSX uses a lightweight standard-library implementation; legacy `.xls` uses `xlrd`.
+- Operational CSV uses the standard library; operational Excel uses `openpyxl`; legacy `.xls` uses `xlrd`.
 - Configuration uses `dataclass` and `LINK_CHECKER_*` variables, with simple `.env` support.
 - `pytest` covers rules and services without internet access.
 - The main flow is HTTP-only. Browser checker/Playwright are not part of the current core.

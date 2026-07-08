@@ -9,13 +9,13 @@ description = "Automacao de testes de links unicos de inscricao em eventos."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "openpyxl>=3.1",
   "pywebview>=5.0",
   "xlrd>=2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "openpyxl>=3.1",
   "pytest>=8.0",
   "ruff>=0.6",
 ]

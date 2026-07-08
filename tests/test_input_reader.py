@@ -85,6 +85,20 @@ class TestExcelSemCabecalho:
         records = reader.read(path)
         assert records[0].link == "https://x.test/1"
 
+    def test_coluna_c_usa_hyperlink_quando_texto_nao_e_url(
+        self, reader: InputReader, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "hyperlink.xlsx"
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Ana", "Empresa A", "Click here"])
+        ws["C1"].hyperlink = "https://example.com/real-link"
+        wb.save(path)
+
+        records = reader.read(path)
+
+        assert records[0].link == "https://example.com/real-link"
+
     def test_ignora_colunas_extras(self, reader: InputReader, tmp_path: Path) -> None:
         path = _create_excel(
             tmp_path,

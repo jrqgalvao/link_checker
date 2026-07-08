@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import csv
-import zipfile
 from pathlib import Path
-from xml.sax.saxutils import escape
 
 from link_checker.enums import LinkStatus
 from link_checker.models import ValidationResult
@@ -130,115 +128,36 @@ def _write_csv(path: Path, columns: tuple[str, ...], rows: list[list[object]]) -
 
 
 def _write_xlsx(path: Path, sheets: list[_Sheet]) -> None:
-    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", _content_types(len(sheets)))
-        archive.writestr("_rels/.rels", _root_rels())
-        archive.writestr("xl/workbook.xml", _workbook_xml(sheets))
-        archive.writestr("xl/_rels/workbook.xml.rels", _workbook_rels(len(sheets)))
-        archive.writestr("xl/styles.xml", _styles_xml())
-        for index, sheet in enumerate(sheets, 1):
-            archive.writestr(f"xl/worksheets/sheet{index}.xml", _sheet_xml(sheet))
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
 
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    header_fill = PatternFill("solid", fgColor="1F4E78")
+    ok_fill = PatternFill("solid", fgColor="C6EFCE")
+    error_fill = PatternFill("solid", fgColor="FFC7CE")
 
-def _content_types(sheet_count: int) -> str:
-    sheet_overrides = "".join(
-        f'<Override PartName="/xl/worksheets/sheet{i}.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-        for i in range(1, sheet_count + 1)
-    )
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-        '<Default Extension="rels" '
-        'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-        '<Default Extension="xml" ContentType="application/xml"/>'
-        '<Override PartName="/xl/workbook.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-        '<Override PartName="/xl/styles.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
-        f"{sheet_overrides}</Types>"
-    )
+    for sheet in sheets:
+        worksheet = workbook.create_sheet(sheet.name)
+        worksheet.freeze_panes = "A2"
+        worksheet.append(list(sheet.columns))
+        for row in sheet.rows:
+            worksheet.append(row)
 
+        for cell in worksheet[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
 
-def _root_rels() -> str:
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
-        'Target="xl/workbook.xml"/></Relationships>'
-    )
+        if sheet.result_sheet:
+            for row in range(2, worksheet.max_row + 1):
+                cell = worksheet.cell(row=row, column=4)
+                cell.fill = ok_fill if cell.value == "OK" else error_fill
 
+        for index, width in enumerate(_column_widths(sheet), 1):
+            worksheet.column_dimensions[_column_name(index)].width = width
 
-def _workbook_xml(sheets: list[_Sheet]) -> str:
-    items = "".join(
-        f'<sheet name="{escape(sheet.name)}" sheetId="{index}" r:id="rId{index}"/>'
-        for index, sheet in enumerate(sheets, 1)
-    )
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-        f"<sheets>{items}</sheets></workbook>"
-    )
-
-
-def _workbook_rels(sheet_count: int) -> str:
-    sheet_rels = "".join(
-        f'<Relationship Id="rId{i}" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
-        f'Target="worksheets/sheet{i}.xml"/>'
-        for i in range(1, sheet_count + 1)
-    )
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        f"{sheet_rels}"
-        f'<Relationship Id="rId{sheet_count + 1}" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" '
-        'Target="styles.xml"/></Relationships>'
-    )
-
-
-def _sheet_xml(sheet: _Sheet) -> str:
-    rows = [_row_xml(1, sheet.columns, header=True, result_sheet=sheet.result_sheet)]
-    rows.extend(
-        _row_xml(index, row, result_sheet=sheet.result_sheet)
-        for index, row in enumerate(sheet.rows, 2)
-    )
-    widths = _cols_xml(sheet)
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-        f"{widths}"
-        '<sheetViews><sheetView workbookViewId="0">'
-        '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'
-        "</sheetView></sheetViews>"
-        f"<sheetData>{''.join(rows)}</sheetData></worksheet>"
-    )
-
-
-def _row_xml(
-    row_number: int,
-    values: tuple[str, ...] | list[object],
-    *,
-    header: bool = False,
-    result_sheet: bool = False,
-) -> str:
-    cells = []
-    for col_index, value in enumerate(values, 1):
-        style = 1 if header else 0
-        if result_sheet and row_number > 1 and col_index == 4:
-            style = 2 if value == "OK" else 3
-        cells.append(_cell_xml(row_number, col_index, value, style))
-    return f'<row r="{row_number}">{"".join(cells)}</row>'
-
-
-def _cell_xml(row_number: int, col_index: int, value: object, style: int) -> str:
-    ref = f"{_column_name(col_index)}{row_number}"
-    text = "" if value is None else str(value)
-    return f'<c r="{ref}" s="{style}" t="inlineStr"><is><t>{escape(text)}</t></is></c>'
+    workbook.save(path)
 
 
 def _column_name(index: int) -> str:
@@ -249,52 +168,11 @@ def _column_name(index: int) -> str:
     return name
 
 
-def _cols_xml(sheet: _Sheet) -> str:
+def _column_widths(sheet: _Sheet) -> list[int]:
     widths = (
         [28, 24, 50, 12] if sheet.result_sheet else [28, 24, 42, 10, 18, 16, 28, 12, 36, 14, 28]
     )
-    cols = "".join(
-        f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>'
-        for idx, width in enumerate(widths[: len(sheet.columns)], 1)
-    )
-    return f"<cols>{cols}</cols>"
-
-
-def _styles_xml() -> str:
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-        '<fonts count="4">'
-        '<font><sz val="11"/><color theme="1"/><name val="Calibri"/></font>'
-        '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
-        '<font><sz val="11"/><color rgb="FF006100"/><name val="Calibri"/></font>'
-        '<font><sz val="11"/><color rgb="FF9C0006"/><name val="Calibri"/></font>'
-        "</fonts>"
-        '<fills count="5">'
-        '<fill><patternFill patternType="none"/></fill>'
-        '<fill><patternFill patternType="gray125"/></fill>'
-        '<fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/>'
-        '<bgColor indexed="64"/></patternFill></fill>'
-        '<fill><patternFill patternType="solid"><fgColor rgb="FFC6EFCE"/>'
-        '<bgColor indexed="64"/></patternFill></fill>'
-        '<fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/>'
-        '<bgColor indexed="64"/></patternFill></fill>'
-        "</fills>"
-        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
-        '<cellStyleXfs count="1">'
-        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
-        "</cellStyleXfs>"
-        '<cellXfs count="4">'
-        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
-        '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" '
-        'applyFont="1" applyFill="1" applyAlignment="1">'
-        '<alignment horizontal="center"/></xf>'
-        '<xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
-        '<xf numFmtId="0" fontId="3" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
-        "</cellXfs>"
-        '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
-        "</styleSheet>"
-    )
+    return widths[: len(sheet.columns)]
 
 
 def _details_row(result: ValidationResult) -> list[object]:

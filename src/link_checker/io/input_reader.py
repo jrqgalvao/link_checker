@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import csv
-import zipfile
 from pathlib import Path
 from urllib.parse import urlparse
-from xml.etree import ElementTree
 
 from link_checker.models import InputLinkRecord
 
 _SUPPORTED_EXCEL_EXTENSIONS = {".xlsx", ".xlsm", ".xls"}
 _REQUIRED_CSV_COLUMNS = ("participante", "email", "empresa", "evento_esperado", "link")
-_NS = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 
 class InputReader:
@@ -104,19 +101,18 @@ class InputReader:
 
 
 def _read_xlsx_rows(path: Path) -> list[list[object]]:
-    with zipfile.ZipFile(path) as archive:
-        shared_strings = _read_shared_strings(archive)
-        sheet_xml = archive.read("xl/worksheets/sheet1.xml")
+    from openpyxl import load_workbook
 
-    root = ElementTree.fromstring(sheet_xml)
+    workbook = load_workbook(path, read_only=False, data_only=True)
+    sheet = workbook.worksheets[0]
     rows: list[list[object]] = []
-    for row_node in root.findall(".//x:sheetData/x:row", _NS):
-        row: list[object] = []
-        for cell in row_node.findall("x:c", _NS):
-            column_index = _column_index(cell.attrib.get("r", "A1"))
-            while len(row) <= column_index:
-                row.append("")
-            row[column_index] = _cell_value(cell, shared_strings)
+    for cells in sheet.iter_rows():
+        row = []
+        for cell in cells:
+            if cell.column == 3 and cell.hyperlink and cell.hyperlink.target:
+                row.append(cell.hyperlink.target)
+            else:
+                row.append(cell.value)
         rows.append(row)
     return rows
 
@@ -132,38 +128,6 @@ def _cell(row: list[object], index: int) -> str:
     if index >= len(row):
         return ""
     return str(row[index] or "").strip()
-
-
-def _read_shared_strings(archive: zipfile.ZipFile) -> list[str]:
-    try:
-        root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
-    except KeyError:
-        return []
-    return [
-        "".join(text.text or "" for text in item.findall(".//x:t", _NS))
-        for item in root.findall("x:si", _NS)
-    ]
-
-
-def _cell_value(cell: ElementTree.Element, shared_strings: list[str]) -> str:
-    if cell.attrib.get("t") == "inlineStr":
-        return "".join(text.text or "" for text in cell.findall(".//x:t", _NS))
-
-    value = cell.find("x:v", _NS)
-    if value is None or value.text is None:
-        return ""
-    if cell.attrib.get("t") == "s":
-        index = int(value.text)
-        return shared_strings[index] if index < len(shared_strings) else ""
-    return value.text
-
-
-def _column_index(cell_ref: str) -> int:
-    letters = "".join(char for char in cell_ref if char.isalpha())
-    index = 0
-    for char in letters:
-        index = index * 26 + ord(char.upper()) - ord("A") + 1
-    return max(index - 1, 0)
 
 
 def _has_http_scheme(value: str) -> bool:

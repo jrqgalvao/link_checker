@@ -19,7 +19,7 @@ a = Analysis(
         'httpx',
         'lxml',
         'numpy',
-        'openpyxl',
+        'numpy.libs',
         'pandas',
         'PIL',
         'pydantic',
