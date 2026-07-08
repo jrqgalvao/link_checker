@@ -166,9 +166,9 @@ Avoid:
 
 Current safety limits:
 
-- `LINK_CHECKER_MAX_WORKERS=8` is the default for roughly 400 links.
+- `LINK_CHECKER_MAX_WORKERS=24` is the default for roughly 400 links.
 - `LINK_CHECKER_HTTP_RETRY_COUNT=1` avoids excessive duplicate traffic.
-- `LINK_CHECKER_HTTP_TIMEOUT_SECONDS=30` avoids hanging on slow links.
+- `LINK_CHECKER_HTTP_TIMEOUT_SECONDS=12` avoids hanging on slow links.
 - Rule HTML text is capped at 100,000 characters.
 - The operational report must stay simple: `OK` or `ERROR`.
 - The technical report is where debugging details belong.

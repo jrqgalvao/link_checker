@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import filecmp
 import mimetypes
 import os
 import shutil
@@ -43,8 +44,10 @@ def _prepare_pythonnet_runtime() -> None:
     source = Path(sys._MEIPASS) / "pythonnet" / "runtime" / "Python.Runtime.dll"
     target_dir = Path(tempfile.gettempdir()) / "link_checker_pythonnet" / "pythonnet"
     target_runtime = target_dir / "runtime"
+    target = target_runtime / "Python.Runtime.dll"
     target_runtime.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, target_runtime / "Python.Runtime.dll")
+    if not target.exists() or not filecmp.cmp(source, target, shallow=False):
+        shutil.copy2(source, target)
 
     import pythonnet
 

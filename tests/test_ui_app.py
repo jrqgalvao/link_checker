@@ -96,3 +96,29 @@ def test_prepare_pythonnet_runtime_redirects_frozen_dll(monkeypatch, tmp_path) -
     assert fake_pythonnet.__file__ == str(
         target_root / "link_checker_pythonnet" / "pythonnet" / "__init__.py"
     )
+
+
+def test_prepare_pythonnet_runtime_reuses_cached_dll(monkeypatch, tmp_path) -> None:
+    source_runtime = tmp_path / "bundle" / "pythonnet" / "runtime"
+    source_runtime.mkdir(parents=True)
+    source_dll = source_runtime / "Python.Runtime.dll"
+    source_dll.write_bytes(b"dll")
+    target_root = tmp_path / "temp"
+    target_runtime = target_root / "link_checker_pythonnet" / "pythonnet" / "runtime"
+    target_runtime.mkdir(parents=True)
+    (target_runtime / "Python.Runtime.dll").write_bytes(b"dll")
+    fake_pythonnet = SimpleNamespace(__file__="original")
+    copies = []
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "bundle"), raising=False)
+    monkeypatch.setattr(app.tempfile, "gettempdir", lambda: str(target_root))
+    monkeypatch.setattr(app.shutil, "copy2", lambda *args: copies.append(args))
+    monkeypatch.setitem(sys.modules, "pythonnet", fake_pythonnet)
+
+    app._prepare_pythonnet_runtime()
+
+    assert copies == []
+    assert fake_pythonnet.__file__ == str(
+        target_root / "link_checker_pythonnet" / "pythonnet" / "__init__.py"
+    )

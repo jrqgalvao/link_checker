@@ -90,6 +90,20 @@ class TestReturnsOk:
         assert result is not None
         assert result.status == LinkStatus.OK
 
+    def test_login_redirect_with_encoded_registration_url_returns_ok(self) -> None:
+        result = EventPageRule().match(
+            _context(
+                link="https://example.com/hotsite/controladora/cionew/pbttM3cbaLY-",
+                final_url=(
+                    "https://example.com/hotsite/login/index/url/"
+                    "L2luc2NyaWNvZXMtcGFydGljaXBhbnRlcy9mb3JtL2NvZGlnb2V2ZW50by8xMTE3"
+                    "L2xhbmcvcHRfYnIvcmVkaXIvdGVzdGU=/codigoevento/1117"
+                ),
+            )
+        )
+        assert result is not None
+        assert result.status == LinkStatus.OK
+
     def test_evidence_is_clear(self) -> None:
         result = EventPageRule().match(
             _context(final_url="https://test.com/hotsite/inscricoes-participantes/form/123")

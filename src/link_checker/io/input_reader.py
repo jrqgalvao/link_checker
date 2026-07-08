@@ -124,8 +124,14 @@ def _read_xlsx_rows(path: Path) -> list[list[object]]:
 def _read_xls_rows(path: Path) -> list[list[object]]:
     import xlrd
 
-    sheet = xlrd.open_workbook(path).sheet_by_index(0)
-    return [sheet.row_values(index) for index in range(sheet.nrows)]
+    sheet = xlrd.open_workbook(path, formatting_info=True).sheet_by_index(0)
+    rows = [sheet.row_values(index) for index in range(sheet.nrows)]
+    for (row_index, col_index), hyperlink in getattr(sheet, "hyperlink_map", {}).items():
+        if col_index == 2 and row_index < len(rows) and len(rows[row_index]) > col_index:
+            url = getattr(hyperlink, "url_or_path", "")
+            if url:
+                rows[row_index][col_index] = url
+    return rows
 
 
 def _cell(row: list[object], index: int) -> str:

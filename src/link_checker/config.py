@@ -10,11 +10,11 @@ _ENV_FILE = ".env"
 
 @dataclass(frozen=True)
 class Settings:
-    http_timeout_seconds: float = 30.0
+    http_timeout_seconds: float = 12.0
     http_retry_count: int = 1
     user_agent: str = "link-checker/0.1"
     max_redirects: int = 10
-    max_workers: int = 8
+    max_workers: int = 24
     reports_dir: Path = Path("reports")
     debug: bool = False
 
@@ -32,7 +32,7 @@ class Settings:
         object.__setattr__(
             self,
             "http_timeout_seconds",
-            _env_float("LINK_CHECKER_HTTP_TIMEOUT_SECONDS", http_timeout_seconds, 30.0),
+            _env_float("LINK_CHECKER_HTTP_TIMEOUT_SECONDS", http_timeout_seconds, 12.0),
         )
         object.__setattr__(
             self,
@@ -52,7 +52,7 @@ class Settings:
         object.__setattr__(
             self,
             "max_workers",
-            _env_int("LINK_CHECKER_MAX_WORKERS", max_workers, 8),
+            _env_int("LINK_CHECKER_MAX_WORKERS", max_workers, 24),
         )
         object.__setattr__(
             self,

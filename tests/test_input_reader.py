@@ -294,5 +294,32 @@ class TestLegadoCsv:
         with mock.patch("xlrd.open_workbook", return_value=FakeBook()) as open_workbook:
             records = reader.read(path)
 
-        open_workbook.assert_called_once_with(path)
+        open_workbook.assert_called_once_with(path, formatting_info=True)
         assert records[0].participante == "Ana"
+
+    def test_xls_coluna_c_usa_hyperlink_quando_texto_nao_e_url(
+        self, reader: InputReader, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "legacy_hyperlink.xls"
+        path.write_bytes(b"fake xls")
+
+        class FakeHyperlink:
+            url_or_path = "https://example.com/xls-real"
+
+        class FakeSheet:
+            nrows = 1
+            hyperlink_map = {(0, 2): FakeHyperlink()}
+
+            def row_values(self, _index):
+                return ["Ana", "Empresa A", "Click here"]
+
+        class FakeBook:
+            def sheet_by_index(self, index):
+                assert index == 0
+                return FakeSheet()
+
+        with mock.patch("xlrd.open_workbook", return_value=FakeBook()) as open_workbook:
+            records = reader.read(path)
+
+        open_workbook.assert_called_once_with(path, formatting_info=True)
+        assert records[0].link == "https://example.com/xls-real"

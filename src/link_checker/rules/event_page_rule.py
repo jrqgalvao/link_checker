@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+from urllib.parse import unquote, urlparse
+
 from link_checker.enums import LinkStatus
 from link_checker.models import RuleMatch, ValidationContext
 from link_checker.utils.text import normalize_text
@@ -40,6 +43,7 @@ class EventPageRule:
 
         normalized_url = normalize_text(http.final_url or "")
         normalized_original_url = normalize_text(http.link)
+        normalized_login_target = normalize_text(_encoded_login_target(http.final_url or ""))
 
         for pattern in self.negative_url_patterns:
             if pattern in normalized_url:
@@ -51,6 +55,14 @@ class EventPageRule:
                     LinkStatus.OK,
                     self.name,
                     "URL final de inscricao detectada",
+                )
+
+        for pattern in self.registration_url_patterns:
+            if pattern in normalized_login_target:
+                return RuleMatch(
+                    LinkStatus.OK,
+                    self.name,
+                    "URL de inscricao codificada no login detectada",
                 )
 
         for pattern in self.registration_url_patterns:
@@ -78,3 +90,18 @@ class EventPageRule:
             )
 
         return None
+
+
+def _encoded_login_target(url: str) -> str:
+    parts = urlparse(url).path.split("/")
+    if "url" not in parts:
+        return ""
+    index = parts.index("url") + 1
+    if index >= len(parts):
+        return ""
+    token = unquote(parts[index])
+    try:
+        padding = "=" * (-len(token) % 4)
+        return base64.urlsafe_b64decode(token + padding).decode("utf-8", errors="replace")
+    except ValueError:
+        return ""
