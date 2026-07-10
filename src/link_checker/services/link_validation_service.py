@@ -30,7 +30,15 @@ class LinkValidationService:
                 technical_error=str(exc),
             )
 
-        match = self.rule_registry.classify(ValidationContext(http_result=http_result))
+        try:
+            match = self.rule_registry.classify(ValidationContext(http_result=http_result))
+        except Exception as exc:
+            return ValidationResult.from_record(
+                record,
+                status=LinkStatus.ERRO_TECNICO,
+                http_result=http_result,
+                technical_error=f"Falha na classificacao: {exc}",
+            )
         if match:
             return ValidationResult.from_record(
                 record,

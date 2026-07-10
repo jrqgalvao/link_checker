@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -29,15 +30,14 @@ class Settings:
         reports_dir: Path | str | None = None,
         debug: bool | None = None,
     ) -> None:
-        object.__setattr__(
-            self,
-            "http_timeout_seconds",
-            _env_float("LINK_CHECKER_HTTP_TIMEOUT_SECONDS", http_timeout_seconds, 12.0),
-        )
+        timeout = _env_float("LINK_CHECKER_HTTP_TIMEOUT_SECONDS", http_timeout_seconds, 12.0)
+        if timeout <= 0:
+            raise ValueError("LINK_CHECKER_HTTP_TIMEOUT_SECONDS deve ser maior que zero.")
+        object.__setattr__(self, "http_timeout_seconds", timeout)
         object.__setattr__(
             self,
             "http_retry_count",
-            _env_int("LINK_CHECKER_HTTP_RETRY_COUNT", http_retry_count, 1),
+            _env_int("LINK_CHECKER_HTTP_RETRY_COUNT", http_retry_count, 1, minimum=0),
         )
         object.__setattr__(
             self,
@@ -47,33 +47,58 @@ class Settings:
         object.__setattr__(
             self,
             "max_redirects",
-            _env_int("LINK_CHECKER_MAX_REDIRECTS", max_redirects, 10),
+            _env_int("LINK_CHECKER_MAX_REDIRECTS", max_redirects, 10, minimum=0),
         )
         object.__setattr__(
             self,
             "max_workers",
-            _env_int("LINK_CHECKER_MAX_WORKERS", max_workers, 24),
+            _env_int("LINK_CHECKER_MAX_WORKERS", max_workers, 24, minimum=1),
         )
+        reports_value = reports_dir or _setting_value("LINK_CHECKER_REPORTS_DIR") or "reports"
+        reports_path = Path(reports_value)
+        if getattr(sys, "frozen", False) and not reports_path.is_absolute():
+            reports_path = _runtime_dir() / reports_path
         object.__setattr__(
             self,
             "reports_dir",
-            Path(reports_dir or _setting_value("LINK_CHECKER_REPORTS_DIR") or "reports"),
+            reports_path,
         )
         object.__setattr__(self, "debug", _env_bool("LINK_CHECKER_DEBUG", debug, False))
 
 
-def _env_int(name: str, explicit: int | None, default: int) -> int:
+def _env_int(
+    name: str,
+    explicit: int | None,
+    default: int,
+    *,
+    minimum: int,
+) -> int:
     if explicit is not None:
-        return explicit
-    value = _setting_value(name)
-    return int(value) if value else default
+        parsed = explicit
+    else:
+        value = _setting_value(name)
+        if not value:
+            parsed = default
+        else:
+            try:
+                parsed = int(value)
+            except ValueError as exc:
+                raise ValueError(f"{name} deve ser um numero inteiro.") from exc
+    if parsed < minimum:
+        raise ValueError(f"{name} deve ser maior ou igual a {minimum}.")
+    return parsed
 
 
 def _env_float(name: str, explicit: float | None, default: float) -> float:
     if explicit is not None:
         return explicit
     value = _setting_value(name)
-    return float(value) if value else default
+    if not value:
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} deve ser um numero decimal.") from exc
 
 
 def _env_bool(name: str, explicit: bool | None, default: bool) -> bool:
@@ -89,9 +114,15 @@ def _setting_value(name: str) -> str | None:
     return os.getenv(name) or _env_file_values().get(name)
 
 
+def _runtime_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path.cwd()
+
+
 @cache
 def _env_file_values() -> dict[str, str]:
-    path = Path(_ENV_FILE)
+    path = _runtime_dir() / _ENV_FILE
     if not path.exists():
         return {}
     values: dict[str, str] = {}

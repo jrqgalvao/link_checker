@@ -4,6 +4,7 @@ import socket
 from email.message import Message
 from unittest import mock
 from urllib.error import HTTPError, URLError
+from urllib.request import HTTPRedirectHandler
 
 import pytest
 
@@ -13,7 +14,7 @@ from link_checker.models import HttpCheckResult
 
 @pytest.fixture
 def checker() -> HttpChecker:
-    return HttpChecker(timeout_seconds=30.0, user_agent="test-agent", max_redirects=5)
+    return HttpChecker(timeout_seconds=30.0, user_agent="test-agent", max_redirects=10)
 
 
 class FakeResponse:
@@ -44,8 +45,18 @@ class FakeResponse:
 
 
 def test_uses_configured_timeout() -> None:
-    checker = HttpChecker(timeout_seconds=30.0, user_agent="test", max_redirects=5)
+    checker = HttpChecker(timeout_seconds=30.0, user_agent="test", max_redirects=10)
     assert checker.timeout_seconds == 30.0
+
+
+def test_uses_configured_redirect_limit() -> None:
+    checker = HttpChecker(timeout_seconds=30.0, user_agent="test", max_redirects=3)
+
+    assert checker._opener is not None
+    handler = next(
+        item for item in checker._opener.handlers if isinstance(item, HTTPRedirectHandler)
+    )
+    assert handler.max_redirections == 3
 
 
 def test_empty_url_returns_controlled_error(checker: HttpChecker) -> None:
@@ -133,7 +144,7 @@ def test_retries_timeout_then_returns_success() -> None:
     checker = HttpChecker(
         timeout_seconds=30.0,
         user_agent="test-agent",
-        max_redirects=5,
+        max_redirects=10,
         retry_count=1,
     )
 
@@ -151,7 +162,7 @@ def test_retries_429_then_returns_success() -> None:
     checker = HttpChecker(
         timeout_seconds=30.0,
         user_agent="test-agent",
-        max_redirects=5,
+        max_redirects=10,
         retry_count=1,
     )
     rate_limit = HTTPError("https://x.test", 429, "rate limit", {}, None)

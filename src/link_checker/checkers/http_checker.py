@@ -4,12 +4,19 @@ import socket
 from time import perf_counter
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from link_checker.models import HttpCheckResult
 
 _MAX_RESPONSE_TEXT_CHARS = 100_000
 _RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
+_DEFAULT_REDIRECT_LIMIT = 10
+
+
+class _LimitedRedirectHandler(HTTPRedirectHandler):
+    def __init__(self, max_redirections: int) -> None:
+        super().__init__()
+        self.max_redirections = max_redirections
 
 
 class HttpChecker:
@@ -21,10 +28,21 @@ class HttpChecker:
         max_redirects: int,
         retry_count: int = 0,
     ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds deve ser maior que zero")
+        if max_redirects < 0:
+            raise ValueError("max_redirects deve ser maior ou igual a zero")
+        if retry_count < 0:
+            raise ValueError("retry_count deve ser maior ou igual a zero")
         self.timeout_seconds = timeout_seconds
         self.user_agent = user_agent
         self.max_redirects = max_redirects
         self.retry_count = retry_count
+        self._opener = (
+            None
+            if max_redirects == _DEFAULT_REDIRECT_LIMIT
+            else build_opener(_LimitedRedirectHandler(max_redirects))
+        )
 
     def check(self, url: str) -> HttpCheckResult:
         started = perf_counter()
@@ -48,9 +66,10 @@ class HttpChecker:
         return last_result or HttpCheckResult(link=url, error="Erro tecnico desconhecido")
 
     def _check_once(self, original_url: str, clean_url: str, started: float) -> HttpCheckResult:
-        request = Request(clean_url, headers={"User-Agent": self.user_agent}, method="GET")
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
+            request = Request(clean_url, headers={"User-Agent": self.user_agent}, method="GET")
+            open_url = urlopen if self._opener is None else self._opener.open
+            with open_url(request, timeout=self.timeout_seconds) as response:
                 response_text = _read_limited_text(response)
                 return HttpCheckResult(
                     link=original_url,
@@ -86,6 +105,13 @@ class HttpChecker:
                 link=original_url,
                 response_time_seconds=perf_counter() - started,
                 error=f"HTTP error: {exc}",
+                timed_out=False,
+            )
+        except (TypeError, ValueError) as exc:
+            return HttpCheckResult(
+                link=original_url,
+                response_time_seconds=perf_counter() - started,
+                error=f"URL invalida: {exc}",
                 timed_out=False,
             )
 

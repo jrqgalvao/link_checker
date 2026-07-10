@@ -14,6 +14,11 @@ class FakeChecker:
         return self.result
 
 
+class ExplodingRegistry:
+    def classify(self, _context):
+        raise RuntimeError("rule boom")
+
+
 def input_record() -> InputLinkRecord:
     return InputLinkRecord(
         participante="Ana",
@@ -45,6 +50,18 @@ def test_returns_technical_error_when_checker_raises() -> None:
 
     assert result.status == LinkStatus.ERRO_TECNICO
     assert "boom" in (result.technical_error or "")
+
+
+def test_returns_technical_error_when_rule_raises() -> None:
+    service = LinkValidationService(
+        http_checker=FakeChecker(HttpCheckResult(link="https://x.test", status_code=200)),
+        rule_registry=ExplodingRegistry(),
+    )
+
+    result = service.validate(input_record())
+
+    assert result.status == LinkStatus.ERRO_TECNICO
+    assert "rule boom" in (result.technical_error or "")
 
 
 def test_returns_timeout_when_checker_returns_timeout() -> None:

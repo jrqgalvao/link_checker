@@ -29,9 +29,12 @@ Delivered:
 - Input reading from operational Excel files without headers (`.xlsx`, `.xlsm`, `.xls`) and legacy CSV.
 - HTTP validation with timeout, redirects, simple retry, and controlled parallelism.
 - Pluggable classification rules with detailed internal status.
-- Simple operational `.xlsx` or `.csv` report with final result `OK` or `ERROR`.
+- Simple operational `.xlsx` or `.csv` report with final result `OK` or `ERRO`.
 - Optional technical `.csv` report for debugging.
 - Desktop app with spreadsheet selection, validation, KPIs, filters, search, and export.
+- UI actions wait for the `pywebview` desktop API before becoming available.
+- Invalid numeric configuration fails early with a clear message.
+- Rule failures are isolated to the affected link instead of aborting the batch.
 - Unit tests for input reading, rules, HTTP checker, runner, CLI, reports, and UI API.
 - Local PyInstaller build at `dist/LinkChecker/LinkChecker.exe`.
 
@@ -169,8 +172,11 @@ Current safety limits:
 - `LINK_CHECKER_MAX_WORKERS=24` is the default for roughly 400 links.
 - `LINK_CHECKER_HTTP_RETRY_COUNT=1` avoids excessive duplicate traffic.
 - `LINK_CHECKER_HTTP_TIMEOUT_SECONDS=12` avoids hanging on slow links.
+- `LINK_CHECKER_MAX_REDIRECTS=10` limits redirects per link.
+- Worker, retry, timeout, and redirect values are validated before execution.
+- In the frozen executable, relative `.env` and `reports/` paths resolve beside the `.exe`.
 - Rule HTML text is capped at 100,000 characters.
-- The operational report must stay simple: `OK` or `ERROR`.
+- The operational report must stay simple: `OK` or `ERRO`.
 - The technical report is where debugging details belong.
 
 ## Required Change Flow
@@ -282,6 +288,8 @@ does not open an external browser, and does not depend on a web server.
 Spreadsheet reading and UI validation run in the background to keep the window
 responsive. The screen polls progress in a controlled way, debounces search, and
 paginates the table to avoid reprocessing all rows on every interaction.
+Upload, validation, clearing, and export controls remain disabled until
+`pywebviewready` confirms that the Python desktop API is injected.
 
 Current flow:
 
@@ -370,7 +378,7 @@ preserve macros.
 
 The operational Excel file contains:
 
-- `resultado` sheet: simple report with `OK`/`ERROR`
+- `resultado` sheet: simple report with `OK`/`ERRO`
 - `detalhes` sheet: internal status, rule, evidence, HTTP status, final URL, and technical error
 
 Columns in the `resultado` sheet:
@@ -420,7 +428,7 @@ Do not put technical fields in the operational report. Use the technical report.
 
 Rules must be conservative:
 
-- False `OK` is worse than false `ERROR`.
+- False `OK` is worse than false `ERRO`.
 - `OK` by strong URL is acceptable.
 - `OK` by text requires strong signals.
 - Generic pages must become `INDETERMINADO`.
@@ -440,10 +448,12 @@ class MyRule:
 
 ## Current Decisions
 
-- HTTP validation uses Python's standard library (`urllib`) with redirects and a default 30-second timeout per link.
+- HTTP validation uses Python's standard library (`urllib`) with redirects and a default 12-second timeout per link.
   The timeout can be configured through `LINK_CHECKER_HTTP_TIMEOUT_SECONDS` in `.env`.
+- The redirect limit can be configured through `LINK_CHECKER_MAX_REDIRECTS`.
 - Transient failures use simple retry configured by `LINK_CHECKER_HTTP_RETRY_COUNT`.
 - Validation runs in parallel with `LINK_CHECKER_MAX_WORKERS` workers while preserving report order.
+- A classification-rule exception becomes `ERRO_TECNICO` for the affected link.
 - Empty URLs or URLs without `http/https` become controlled technical errors before any request.
 - HTML text used by rules is capped at 100,000 characters to reduce memory risk.
 - Current HTTP classification:
@@ -454,7 +464,7 @@ class MyRule:
   - HTTP 200 with strong support/error signals -> `INVALIDO_SUPORTE`
   - Strong signal examples: final URL `/controladora/erro/`, "Problemas com os dados de acesso", "link invalido", "acesso invalido"
   - `SupportErrorRule` must be conservative: "entre em contato", "erro", and "suporte" do not classify an error by themselves.
-  - False `OK` is bad, but false `ERROR` on a valid page also hurts operations.
+  - False `OK` is bad, but false `ERRO` on a valid page also hurts operations.
   - Registration page classification:
     - Normal HTTP with final URL `/hotsite/inscricoes-participantes/form/` or `/inscricoes-participantes/form/` -> `OK`
     - Normal HTTP with clear text containing `inscricao` and `participante` -> `OK`
@@ -483,7 +493,7 @@ class MyRule:
 - Classifying `OK` only because the word `evento` appears.
 - Classifying `OK` only because the word `participante` appears.
 - Classifying `OK` only because the word `inscricao` appears.
-- Classifying `ERROR` only because the word `suporte` appears in a footer.
+- Classifying `ERRO` only because the word `suporte` appears in a footer.
 - Putting technical details in the operational report.
 - Testing with real URLs.
 - Increasing parallelism "to make it faster" without measuring.

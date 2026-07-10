@@ -541,7 +541,7 @@
       <aside>
         <div class="side-stack">
           <div class="file-box">
-            <button id="select-file" type="button">
+            <button id="select-file" type="button" disabled>
               <span class="xls-icon">XLS</span>
               <span class="upload-label">Clique para selecionar</span>
               <span id="upload-check" class="upload-check" hidden>✓</span>
@@ -552,7 +552,7 @@
             <div id="file-meta" class="file-meta">.xlsx, .xlsm, .xls ou .csv</div>
           </div>
           <button id="validate" class="primary" type="button" disabled>Validar</button>
-          <button id="clear" type="button">Limpar</button>
+          <button id="clear" type="button" disabled>Limpar</button>
           <button id="export" type="button" disabled>Exportar Excel</button>
           <div class="progress-card">
             <div id="progress-text" class="progress-text">Aguardando</div>
@@ -629,6 +629,7 @@
       filtered: [],
       filter: "TODOS",
       busy: false,
+      apiReady: false,
       page: 1,
       pageSize: 100,
       pollTimer: null,
@@ -668,10 +669,15 @@
     function setBusy(value, message) {
       state.busy = value;
       els.state.textContent = message;
-      els.selectFile.disabled = value;
-      els.validate.disabled = value || !state.path;
-      els.clear.disabled = value;
-      els.export.disabled = value || state.rows.length === 0;
+      els.selectFile.disabled = value || !state.apiReady;
+      els.validate.disabled = value || !state.path || !state.apiReady;
+      els.clear.disabled = value || !state.apiReady;
+      els.export.disabled = value || !state.apiReady || state.rows.length === 0;
+    }
+
+    function markApiReady() {
+      state.apiReady = true;
+      setBusy(false, "Aguardando planilha");
     }
 
     function setStatus(message) {
@@ -799,11 +805,16 @@
       if (scope === "cancelar") return;
 
       setBusy(true, "Exportando...");
-      const visible = scope === "visiveis";
-      const indices = visible ? state.filtered.map(row => row.idx) : [];
-      const response = await api().exportar(visible, indices);
-      setBusy(false, response.ok ? `Arquivo salvo: ${response.nome}` : "Falha na exportação");
-      if (!response.ok) showError(response.erro);
+      try {
+        const visible = scope === "visiveis";
+        const indices = visible ? state.filtered.map(row => row.idx) : [];
+        const response = await api().exportar(visible, indices);
+        setBusy(false, response.ok ? `Arquivo salvo: ${response.nome}` : "Falha na exportação");
+        if (!response.ok) showError(response.erro);
+      } catch (error) {
+        setBusy(false, "Falha na exportacao");
+        showError(error?.message || String(error));
+      }
     }
 
     function stopPolling() {
@@ -943,7 +954,13 @@
 
     els.clear.addEventListener("click", async () => {
       stopPolling();
-      await api().limpar();
+      try {
+        await api().limpar();
+      } catch (error) {
+        setBusy(false, "Falha ao limpar");
+        showError(error?.message || String(error));
+        return;
+      }
       state.path = null;
       state.rows = [];
       state.filtered = [];
@@ -986,6 +1003,8 @@
       renderRows();
     });
     els.export.addEventListener("click", exportResults);
+    window.addEventListener("pywebviewready", markApiReady);
+    if (window.pywebview && window.pywebview.api) markApiReady();
   </script>
 </body>
 </html>

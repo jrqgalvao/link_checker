@@ -8,7 +8,10 @@ and exports a simple operational Excel report.
 - Desktop UI with spreadsheet upload, filters, search, and export.
 - HTTP validation using Python's standard library.
 - Pluggable classification rules.
-- Simple operational report with `OK` or `ERROR`.
+- Simple operational report with `OK` or `ERRO`.
+- UI actions wait for the desktop API before becoming available.
+- Invalid numeric configuration fails early with a clear message.
+- Rule failures are isolated to the affected link instead of aborting the batch.
 - Optional technical report through the CLI.
 - Unit tests that do not use the internet or real links.
 ## Documentation
@@ -41,5 +44,6 @@ The executable is generated at:
 ```text
 dist/LinkChecker/LinkChecker.exe
 ```
-For end users, this executable opens a local desktop window directly.
+This is an onedir build: keep `LinkChecker.exe` together with its `_internal`
+folder. For end users, it opens a local desktop window directly.
 No browser, server, or Python installation is required.

@@ -199,3 +199,11 @@ def test_prepare_pythonnet_runtime_reuses_cached_dll(monkeypatch, tmp_path) -> N
     assert fake_pythonnet.__file__ == str(
         target_root / "link_checker_pythonnet" / "pythonnet" / "__init__.py"
     )
+
+
+def test_ui_waits_for_pywebview_api_before_enabling_actions() -> None:
+    template = app._html_path().read_text(encoding="utf-8")
+
+    assert 'id="select-file" type="button" disabled' in template
+    assert "state.apiReady" in template
+    assert "pywebviewready" in template

@@ -91,13 +91,13 @@ class TestExcelSemCabecalho:
         path = tmp_path / "hyperlink.xlsx"
         wb = Workbook()
         ws = wb.active
-        ws.append(["Ana", "Empresa A", "Click here"])
-        ws["C1"].hyperlink = "https://example.com/real-link"
+        ws.append(["Ana", "Empresa A", "Clique aqui"])
+        ws["C1"].hyperlink = "https://example.com/link-real"
         wb.save(path)
 
         records = reader.read(path)
 
-        assert records[0].link == "https://example.com/real-link"
+        assert records[0].link == "https://example.com/link-real"
 
     def test_coluna_c_usa_formula_hyperlink_quando_texto_nao_e_url(
         self, reader: InputReader, tmp_path: Path
@@ -105,7 +105,7 @@ class TestExcelSemCabecalho:
         path = tmp_path / "formula_hyperlink.xlsx"
         wb = Workbook()
         ws = wb.active
-        ws.append(["Ana", "Empresa A", '=HYPERLINK("https://example.com/formula", "Click here")'])
+        ws.append(["Ana", "Empresa A", '=HYPERLINK("https://example.com/formula", "Clique aqui")'])
         wb.save(path)
 
         records = reader.read(path)
@@ -311,7 +311,7 @@ class TestLegadoCsv:
             hyperlink_map = {(0, 2): FakeHyperlink()}
 
             def row_values(self, _index):
-                return ["Ana", "Empresa A", "Click here"]
+                return ["Ana", "Empresa A", "Clique aqui"]
 
         class FakeBook:
             def sheet_by_index(self, index):
